@@ -1,5 +1,6 @@
 module.exports = {
 	"port": 8080,
-	"apiKey": "your-google-api-key-here"
+	"apiKey": "AIzaSyAR6e38OL2H-uOg8B6cBnMAuZ8jaQtJqMY",
+	"database": "mongodb://localhost:27017"
 }
 

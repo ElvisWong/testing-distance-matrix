@@ -7,18 +7,43 @@ const bodyParser = require('body-parser')
 const mongoose = require('mongoose')
 const Route = require('./models/route')
 const Token = require('./models/token')
-const UIDGenerator = require('uid-generator');
-const uidgen = new UIDGenerator(); // Default is a 128-bit UID encoded in base58
-const solver = require('node-tspsolver')
+const UIDGenerator = require('uid-generator')
+const uidgen = new UIDGenerator() // Default is a 128-bit UID encoded in base58
+const ortools = require('node_or_tools')
 
 // express
 const app = express()
 
 app.use(bodyParser.json())
+app.use(bodyParser.urlencoded({
+  extended: true
+}))
 
-mongoose.connect('mongodb://mongo:27017')
-  .then(() =>  console.log('Database connection successful'))
-  .catch((err) => console.error(err));
+const options = {
+    autoIndex: false, // Don't build indexes
+    reconnectTries: 30, // Retry up to 30 times
+    reconnectInterval: 500, // Reconnect every 500ms
+    poolSize: 10, // Maintain up to 10 socket connections
+    // If not connected, return errors immediately rather than waiting for reconnect
+    bufferMaxEntries: 0
+  }
+
+let database = config.database
+if (process.env.NODE_ENV === 'production') {
+	database = config.database.replace('localhost', 'mongo')
+}
+
+const connectWithRetry = () => {
+  console.log('MongoDB connection with retry')
+  mongoose.connect(database, options).then(()=>{
+    console.log('MongoDB is connected')
+  }).catch(err=>{
+    console.log('MongoDB connection unsuccessful, retry after 5 seconds.')
+    setTimeout(connectWithRetry, 5000)
+  })
+}
+
+connectWithRetry()
 
 app.route('/')
 	.get(async (req, res) => {
@@ -27,10 +52,11 @@ app.route('/')
 
 app.route('/route')
 	.post(async (req, res) => {
-		let points = req.body.input
+		let points = req.body
 		let routes = []
 		let uid = await uidgen.generate()
 		let token = new Token({_id: uid})
+		let error = ''
 		let stops = []
 		token.routes = []
 		for (let i = 0; i < points.length; i++) {
@@ -42,24 +68,32 @@ app.route('/route')
 				origins: stops, 
 				destinations: stops
 			}, async (err, res) => {
-				let results = res.json.rows
-				for (let j = 0; j < results.length; j++) {
-					let item = results[j]
-					for (let k = 0; k < item.elements.length; k++) {
-						let elm = item.elements[k]
-						if (elm.status === "OK" && elm.distance.value !== 0) {
-							let route = new Route({
-									origin: points[j],
-									destination: points[k],
-									distance: elm.distance.value,
-									duration: elm.duration.value
-								})
-							routes.push(await new Promise((resolve) => {
-								route.save((err, result) => {
-									token.routes.push(result._id)
-									resolve()
-								})
-							}))
+				if (err) {
+					return res.status(200).send({error: err})
+				} else {
+					let results = res.json.rows
+					for (let j = 0; j < results.length; j++) {
+						let item = results[j]
+						for (let k = 0; k < item.elements.length; k++) {
+							let elm = item.elements[k]
+							if (elm.status === "OK" && elm.distance.value !== 0) {
+								let route = new Route({
+										origin: points[j],
+										destination: points[k],
+										distance: elm.distance.value,
+										duration: elm.duration.value
+									})
+								routes.push(await new Promise((resolve) => {
+									route.save((err, result) => {
+										if (err) {
+											return res.status(200).send({error: err})
+										} else {
+											token.routes.push(result._id)
+											resolve()
+										}
+									})
+								}))
+							}
 						}
 					}
 				}
@@ -75,7 +109,7 @@ app.param('token', async (req, res, next, id) => {
 	const token = await Token.findById(id)
 	await token.populate({path: 'routes'}).execPopulate()
 	if (!token) {
-		console.log("err: token not found!")
+		res.status(200).json({status: 'failure', error: 'Token not found'})
 	}
 	req.data = token
 	next()
@@ -84,6 +118,7 @@ app.param('token', async (req, res, next, id) => {
 app.route('/route/:token')
 	.get(async (req, res) => {
 		const routes = req.data.routes
+		let result = {status: 'in progress'}
 		let distanceMatrix = [], durationMatrix = []
 		let origins = routes.map((n) => n.origin.join(',')).filter((elem, idx, arr) => {
 			return arr.indexOf(elem) == idx
@@ -109,15 +144,32 @@ app.route('/route/:token')
 			distanceMatrix[i] = distance
 			durationMatrix[i] = duration
 		}
-		let result = {status: 'in progress'}
-		await solver.solveTsp(distanceMatrix, false, {}).then((res) => {
-			let path = res.map((n) => origins[n].split(','))
-			let distance = 0, duration = 0
-			for (let i=0; i < res.length-1; i++) {
-				distance += distanceMatrix[i][i+1]
-				duration += durationMatrix[i][i+1]
-			}
-			Object.assign(result, {path: path, total_distance: distance, total_time: duration, status: "success"})
+		let tspSolverOpts = {
+			numNodes: origins.length,
+			costs: distanceMatrix
+		}
+		let TSP = new ortools.TSP(tspSolverOpts)
+		let tspSearchOpts = {
+			computeTimeLimit: 1000,
+			depotNode: 0
+		}
+		await new Promise((resolve) => {
+			TSP.Solve(tspSearchOpts, (err, res) => {
+				if (err) {
+					Object.assign(result, {status: "failure", error: err})
+					resolve()
+				} else {
+					res.unshift(0)
+					let path = res.map((n) => origins[n].split(','))
+					let distance = 0, duration = 0
+					for (let i=0; i < res.length-1; i++) {
+						distance += distanceMatrix[i][i+1]
+						duration += durationMatrix[i][i+1]
+					}
+					Object.assign(result, {path: path, total_distance: distance, total_time: duration, status: "success"})
+					resolve()
+				}
+			})
 		})
 		res.status(200).json(result)
 	})

@@ -1,4 +1,4 @@
-# Project Title
+# Testing Distance Matrix API
 
 A small project for testing the usage of distance matrix in Google Map API with nodeJS
 
@@ -38,3 +38,5 @@ There are two HTTP endpoints that you can play around with it.
 * `POST /route`: which will return the a token
 
 * `GET /route/<token`: which will return the results
+
+Just run `npm test`

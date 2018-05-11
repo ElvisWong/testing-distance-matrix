@@ -4,20 +4,28 @@
   "description": "testing on using google distance matrix service to handle TSP",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "NODE_ENV=production node index.js",
+    "test": "node_modules/.bin/mocha"
   },
   "author": "Elvis Wong",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/ElvisWong/testing-distance-matrix.git"
+  },
   "license": "ISC",
   "devDependencies": {
     "@google/maps": "^0.4.6",
-    "express": "^4.16.3"
+    "chai": "^4.1.2",
+    "express": "^4.16.3",
+    "mocha": "^5.1.1"
   },
   "dependencies": {
     "body-parser": "^1.18.2",
+    "chai-http": "^4.0.0",
     "lodash": "^4.17.10",
     "mongodb": "^3.0.7",
     "mongoose": "^5.0.17",
-    "node-tspsolver": "^1.0.1",
+    "node_or_tools": "^1.0.5",
     "npm": "^6.0.1",
     "uid-generator": "^1.0.0"
   }
