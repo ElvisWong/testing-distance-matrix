@@ -22,14 +22,12 @@ Here is the link you can get the references on how to get the API key: (https://
 
 ### How to Run it
 
-A step by step series of examples that tell you have to get a development env running
-
 After installed docker you can run docker-compose to run
 ```
 docker-compose up --build
 ```
 
-After complete the build up on docker, you can try to access the localhost:8080 and check whether it is running(http://localhost:8080/)
+After complete the build up on docker, you can try to access the localhost:8080 and check whether it is running on (http://localhost:8080/)
 
 ### How to test it
 
