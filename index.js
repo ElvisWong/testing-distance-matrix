@@ -22,7 +22,7 @@ mongoose.connect('mongodb://mongo:27017')
 
 app.route('/')
 	.get(async (req, res) => {
-		res.send('<p>now running on port 8080</p>')
+		res.send('<p>now running on port ' + config.port + '</p>')
 	})
 
 app.route('/route')
@@ -68,7 +68,7 @@ app.route('/route')
 				resolve()
 			})
 		})
-		res.send({token: token._id})
+		res.status(200).send({token: token._id})
 	})
 
 app.param('token', async (req, res, next, id) => {
@@ -119,7 +119,7 @@ app.route('/route/:token')
 			}
 			Object.assign(result, {path: path, total_distance: distance, total_time: duration, status: "success"})
 		})
-		res.json(result)
+		res.status(200).json(result)
 	})
 
 app.listen(config.port, () => console.log('Example app listening on port %d!', config.port))
