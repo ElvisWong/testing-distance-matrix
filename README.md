@@ -39,4 +39,4 @@ There are two HTTP endpoints that you can play around with it.
 
 * `GET /route/<token`: which will return the results
 
-Just run `npm test`
+Start your `mongod` in terminal and just run `npm test`
